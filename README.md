@@ -1,6 +1,6 @@
 # Cornell Birdcall Identification 🐦
 
-Repository for kernels, papers and everything else (except data!)
+Repository for Kaggle kernels, training pipeline and everything else (except raw audio data!)
 
 ### Papers
 - [Bird Identification from Timestamped,Geotagged Audio Recordings](http://ceur-ws.org/Vol-2125/paper_181.pdf)
