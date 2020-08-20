@@ -1,0 +1,45 @@
+# general
+project: cornell-birdcall-identification
+log_level: INFO
+debug: 1
+
+# global
+seed: 42
+device: cuda
+sr: 32000
+img_size: 224
+verbose: 1
+n_classes: 264
+threshold: 0.5
+preprocess: False # set to True if resampling is required
+
+# filepaths
+paths:
+  root: kaggle/cornell-birdcall-identification
+  train: data/train_combined.csv
+  test: data/test.csv
+  audio: data/resampled_audio
+  ebird_code: data/ebird_codes.json
+  model_dir: checkpoints/00_simple_cnn/checkpoint.pt
+  logs: logs
+
+# melspec parameters
+mel_params:
+  n_mels: 128
+  fmin: 20 # lowest hearable freq?
+  fmax: # sr // 2 i.e nyquist frequency?
+  # n_fft=2048
+  # hop_length=512
+
+# training hyperparams
+hyperparams:
+  cv: 
+    name: StratifiedKFold
+    splits: 4
+  epcohs: 3 # 100
+  batch_size: 32
+  valid_size: 0.2
+  num_workers: 4
+  scheduler: cosineannealing
+  lr: 0.001
+  t_max: 10
