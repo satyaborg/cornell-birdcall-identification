@@ -36,3 +36,14 @@ as a performance improvement without signiﬁcant detriment
 to the quality
 
 split audio files to chunk
+
+## Data
+- Use > 3.0 rating files
+- Lower the rating, noisier the labels
+- Start with 100 classes per species (if available)
+
+## Pretrained models
+- VGGish
+
+## Augmentation
+- SpecAugment: 3 main types from Park et al. introduced [SpecAugment](https://arxiv.org/abs/1904.08779) for data augmentation in speech recognition. There are 3 basic ways to augment data which are time warping, frequency masking and time masking.

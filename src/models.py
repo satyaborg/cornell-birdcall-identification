@@ -65,6 +65,9 @@ class SimpleConvNet(nn.Module):
         x = self.classifier(x)
         return x
 
+class Vggish():
+    pass
+
 class RCNN(nn.Module):
     """Recurrent Convolutional Network"""
     pass

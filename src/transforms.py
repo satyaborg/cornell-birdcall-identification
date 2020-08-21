@@ -38,7 +38,7 @@ def mono_to_color(X: np.ndarray,
     return V
 
 def transformations(img_size):
-    t = transforms.Compose([
+    return transforms.Compose([
             transforms.Lambda(lambda img: mono_to_color(img)),
             transforms.ToPILImage(),
             transforms.Resize(size=(img_size, img_size), interpolation=PIL.Image.NEAREST), # NCHW
@@ -46,4 +46,3 @@ def transformations(img_size):
             transforms.ToTensor() # normalizes values to be [0,1]
     #         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) # to normalize or not?
             ])
-    return t

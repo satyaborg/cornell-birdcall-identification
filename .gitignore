@@ -5,10 +5,13 @@ venv/
 kaggle.json
 fastchirplet/
 TODO
-fix.py
 
 # logs 
-logs/
+logs/*
+runs/*
+
+# weights
+checkpoints/*
 
 # data
 resampled_audio/

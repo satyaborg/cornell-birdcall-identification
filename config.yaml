@@ -7,11 +7,12 @@ debug: 1
 seed: 42
 device: cuda
 sr: 32000
-img_size: 224
+img_size: 224 # square
 verbose: 1
 n_classes: 264
-threshold: 0.5
+threshold: 0.5 # 0.65
 preprocess: False # set to True if resampling is required
+with_cv: False # whether to use kfold CV
 
 # filepaths
 paths:
@@ -20,7 +21,7 @@ paths:
   test: data/test.csv
   audio: data/resampled_audio
   ebird_code: data/ebird_codes.json
-  model_dir: checkpoints/00_simple_cnn/checkpoint.pt
+  model_dir: checkpoints/00_simple_cnn/checkpoint.pt # 00_vggish
   logs: logs
 
 # melspec parameters
@@ -35,8 +36,8 @@ mel_params:
 hyperparams:
   cv: 
     name: StratifiedKFold
-    splits: 4
-  epcohs: 3 # 100
+    splits: 3
+  epochs: 2 # 100
   batch_size: 32
   valid_size: 0.2
   num_workers: 4

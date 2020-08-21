@@ -8,4 +8,4 @@ if __name__ == "__main__":
         preprocessor.resample_audio()
 
     trainer = Trainer(**config)
-    trainer.train()
+    trainer.run()
