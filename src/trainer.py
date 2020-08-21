@@ -78,7 +78,7 @@ class Trainer(object):
 
         # check for existing model.pt and load the same
         if os.path.exists(self.paths.get("model_dir")):
-            logging.info('==> Found checkpoint.pt ..')
+            logging.info('==> Checkpoint found ..')
             checkpoint = torch.load(self.paths.get("model_dir"), map_location=self.device)
             model.load_state_dict(checkpoint['model_state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -86,41 +86,45 @@ class Trainer(object):
             self.start_epoch = checkpoint['epoch'] # to resume training from this epoch
             self.best_f1 = checkpoint['f1_score']
             logging.info('==> Model loaded successfully')
+        else:
+            logging.info('==> No checkpoints found / training from scratch ..')
 
         logger.info('==> Training started ..')
         for epoch in range(self.start_epoch, self.epochs):
+            logger.info('########################\n')
             # keep track of training and validation loss
             train_loss, valid_loss = 0., 0.
             train_epoch_loss, valid_epoch_loss = [], []
             # training mode
             model.train()
             scheduler.step()
-            logger.info('\n########################\n')
-            logger.info('==> current LR: {}'.format(scheduler.get_lr()))
+            logger.info('==> Current LR: {}'.format(scheduler.get_lr()))
             dataset = self.prepare_data()
             skfold = StratifiedKFold(n_splits=self.hyperparams["cv"].get("splits"), shuffle=True, random_state=42)
             # note: for X we can simply pass a tensor of zeros 
             # source: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.StratifiedKFold.html#sklearn.model_selection.StratifiedKFold.split
             for fold, (train_idx, valid_idx) in enumerate(skfold.split(torch.zeros(len(dataset)) , dataset.data.label)):
+                logger.info('**********************\n')
                 logger.info("Fold : [{}/{}]".format(fold, self.hyperparams["cv"].get("splits")))
                 # samplers for obtaining training and validation batches
-                # train_sampler = SubsetRandomSampler(train_idx)
-                # valid_sampler = SubsetRandomSampler(valid_idx)
-                trainset = torch.utils.data.Subset(dataset, train_idx)
-                validset = torch.utils.data.Subset(dataset, valid_idx)
+                train_sampler = SubsetRandomSampler(train_idx)
+                valid_sampler = SubsetRandomSampler(valid_idx)
+                # trainset = torch.utils.data.Subset(dataset, train_idx)
+                # validset = torch.utils.data.Subset(dataset, valid_idx)
+
                 # load training data in batches
-                trainloader = DataLoader(trainset,
+                trainloader = DataLoader(dataset,
                                         batch_size=self.hyperparams.get("batch_size"),
-                                        # sampler=train_sampler,
+                                        sampler=train_sampler,
                                         num_workers=self.hyperparams.get("num_workers"),
                                         pin_memory=True,
                                         # collate_fn=collate_fn,
                                         drop_last=True
                                         )
                 # load validation data in batches
-                validloader = DataLoader(validset, 
+                validloader = DataLoader(dataset, 
                                         batch_size=self.hyperparams.get("batch_size"), 
-                                        # sampler=valid_sampler, 
+                                        sampler=valid_sampler, 
                                         num_workers=self.hyperparams.get("num_workers"), 
                                         pin_memory=True,
                                         # collate_fn=collate_fn,
@@ -216,3 +220,7 @@ class Trainer(object):
                         }, self.paths.get("model_dir")
                     )
                     logger.info('=> Model saved')
+                
+                logger.info('########################\n')
+
+            logger.info('**********************\n')

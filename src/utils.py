@@ -50,5 +50,5 @@ def check_npy(path):
     try:
         np.load(path, allow_pickle=True)
     except Exception as e:
-        print(path)
+        print(e)
         pass # or return a empty np.ndarray
