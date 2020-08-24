@@ -18,6 +18,7 @@ from src.utils import set_random_seeds
 from fastprogress import progress_bar
 from time import strftime
 import logging
+import optuna
 
 # logs to file
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', 
@@ -50,6 +51,10 @@ class Trainer(object):
         self.mel_params = config["mel_params"]
         self.epochs = config["hyperparams"].get("epochs", 100)
         self.writer = SummaryWriter()
+        self.model = SimpleConvNet(n_classes=self.n_classes)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hyperparams.get("lr"))
+        self.dataset = self.prepare_data()
+        
 
     def read_data(self):
         train = pd.read_csv(self.paths.get("train", "data/train.csv"))
@@ -79,7 +84,7 @@ class Trainer(object):
         logger.info('==> checkpoint found .. start_epoch: {}, best_f1: {:.6f}'.format(self.start_epoch, self.best_f1))
         return model, optimizer, scheduler
 
-    def train(self, dataset, **kwargs):
+    def train(self, dataset, load_saved, **kwargs):
         # run this to delete model and reclaim memory
         if "model" in locals(): 
             del model
@@ -119,21 +124,21 @@ class Trainer(object):
                                 )
         
         # intialize model, criterion, optimizer, scheduler
-        model = SimpleConvNet(n_classes=self.n_classes)
+        model = self.model
         model.to(self.device)
         logger.info("==> model initialized ..")
         # note: always use BCEWithLogitsLoss instead of (F.sigmoid + BCELoss) for numerical stability
         criterion = torch.nn.BCEWithLogitsLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=self.hyperparams.get("lr"))
         if self.hyperparams.get("scheduler") == "cosineannealing":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, 
                 T_max=self.hyperparams.get("t_max")
             )
         # not to be used when doing cv
-        if not self.with_cv and os.path.exists(self.paths.get("model_dir")):
-            model, optimizer, scheduler = self.load_weights(model, optimizer, scheduler)
+        if not self.with_cv and os.path.exists(self.paths.get("model_dir")) and load_saved:
+            model, optimizer, scheduler = self.load_weights(model, self.optimizer, scheduler)
         else:
-            logger.info('==> No checkpoints found / training from scratch ..')
+            logger.info('==> Training') if load_saved else logger.info('==> No checkpoints found / training from scratch ..')
+            optimizer = self.optimizer
         
         logger.info('==> Training started ..')
         for epoch in range(self.start_epoch, self.epochs):
@@ -236,6 +241,22 @@ class Trainer(object):
                 logger.info('=> Model saved')
             
             logger.info('**********************\n')
+
+            return avg_valid_loss[-1] # Optuna optimzes for this value; Minimizes this.
+
+    def set_config(self, optimizer):
+        if optimizer == 'Adam':
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hyperparams.get("lr"))
+        elif optimizer == 'MomentumSGD':
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.hyperparams.get("lr"))
+
+    def objective(self, trial):
+        load_saved = False
+        optimizer = trial.suggest_categorical('optimizer', ['MomentumSGD', 'Adam'])
+        #dropout_rate = trial.suggest_uniform('dropout_rate', 0.0, 1.0)
+        self.set_config(optimizer)
+        valid_loss = self.train(self.dataset, load_saved)
+        return valid_loss
         
     def run(self):
         """Main training function
@@ -244,16 +265,19 @@ class Trainer(object):
         3. Save the best F1 score model
         """
         set_random_seeds()
-        dataset = self.prepare_data()
+        load_saved = True # Load the saved checkpoint, if present
         if self.with_cv:
             logger.info("==> training w/ Kfold CV ..")
             skfold = StratifiedKFold(n_splits=self.hyperparams["cv"].get("splits"), shuffle=True, random_state=42)
             # note: for X we can simply pass a tensor of zeros 
             # source: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.StratifiedKFold.html#sklearn.model_selection.StratifiedKFold.split
-            for fold, (train_idx, valid_idx) in enumerate(skfold.split(torch.zeros(len(dataset)) , dataset.data.label)):
+            for fold, (train_idx, valid_idx) in enumerate(skfold.split(torch.zeros(len(self.dataset)) , self.dataset.data.label)):
                 logger.info("Fold : [{}/{}]".format(fold + 1, self.hyperparams["cv"].get("splits")))
                 kwargs = {"splits" : (train_idx, valid_idx)}
-                self.train(dataset, **kwargs)
+                self.train(self.dataset, load_saved, **kwargs)
         else:
             logger.info("==> training w/o Kfold CV ..")
-            self.train(dataset)
+            study = optuna.create_study()
+            study.optimize(self.objective, n_trials=5)
+            print("Optimal hyperparams: ", study.best_params)
+            logger.info('=> Optimal hyperparams: {}'.format(study.best_params))
