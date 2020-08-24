@@ -8,7 +8,7 @@ import gc
 import torch
 from torch.functional import F
 from torch.utils.data import DataLoader, SubsetRandomSampler
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.metrics import f1_score
 from torch.utils.tensorboard import SummaryWriter
 from src.models import SimpleConvNet, ConvNet # RCNN, LSTM
@@ -40,6 +40,9 @@ class Trainer(object):
     def __init__(self, **config):
         self.best_f1 = 0.
         self.start_epoch = 0
+        self.df = None
+        self.splits = {}
+        self.seed = config.get("seed", 42)
         self.with_cv = config["with_cv"]
         self.ebird_code = {}
         self.model_name = config.get("model")
@@ -66,23 +69,44 @@ class Trainer(object):
         return train, test
 
     def prepare_data(self):
-        df, _ = self.read_data()
+        self.df, _ = self.read_data()
         # get train data and apply transformations 
         transform = transformations(self.img_size, self.sr, self.duration, self.mel_params.get("hop_length"))
-        dataset = TrainDataset(df, self.sr, self.mel_params, transform, self.paths.get("audio"))
+        dataset = TrainDataset(self.df, self.sr, self.mel_params, transform, self.paths.get("audio"))
         return dataset
+
+    def train_test_splits(self):
+        splits_path = self.paths.get("splits")
+        if os.path.exists(splits_path):
+            logger.info("==> splits found ..")
+            with open(splits_path, "r") as f:
+                self.splits = json.load(f)
+        else:
+            logger.info("==> splits not found .. creating ..")
+            y = self.df.ebird_code
+            X = self.df.loc[:, self.df.columns != "ebird_code"]
+            X_train, X_test, _, _ = train_test_split(X, y,
+                                                    random_state=self.seed, 
+                                                    test_size=self.hyperparams.get("valid_size"), 
+                                                    stratify=y
+                                                    )
+            self.splits = dict(train_idx=X_train.index.tolist(), valid_idx=X_test.index.tolist())
+            with open(self.paths.get("splits"), "w") as file:
+                json.dump(self.splits, file)
     
     def prepare_dataloader(self, dataset, **kwargs):
         if self.with_cv:
             train_idx, valid_idx = kwargs.get("splits")
         else:
-            num_train = len(dataset)
-            indices = list(range(num_train))
-            np.random.shuffle(indices)
-            split = int(np.floor(self.hyperparams.get("valid_size") * num_train))
-            train_idx, valid_idx = indices[split:], indices[:split]
-
+            self.train_test_splits()
+            # num_train = len(dataset)
+            # indices = list(range(num_train))
+            # np.random.shuffle(indices)
+            # split = int(np.floor(self.hyperparams.get("valid_size") * num_train))
+            # train_idx, valid_idx = indices[split:], indices[:split]
+        
         # define samplers for obtaining training and validation batches
+        train_idx, valid_idx = self.splits.get("train_idx"), self.splits.get("valid_idx")
         train_sampler = SubsetRandomSampler(train_idx)
         valid_sampler = SubsetRandomSampler(valid_idx)
         trainloader = DataLoader(dataset,
@@ -107,7 +131,7 @@ class Trainer(object):
 
     def load_weights(self, model, optimizer, scheduler):
         # check for existing model.pt and load the same
-        checkpoint = torch.load(self.paths.get("model_dir"), map_location=self.device)
+        checkpoint = torch.load(self.paths.get("best_pth"), map_location=self.device)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
@@ -138,12 +162,12 @@ class Trainer(object):
         # note: always use BCEWithLogitsLoss instead of (F.sigmoid + BCELoss) for numerical stability
         criterion = torch.nn.BCEWithLogitsLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=self.hyperparams.get("lr"))
-        if self.hyperparams.get("scheduler") == "cosineannealing":
+        if self.hyperparams.get("scheduler") == "CosineAnnealingLR":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
                 T_max=self.hyperparams.get("t_max")
             )
         # not to be used when doing cv
-        if not self.with_cv and os.path.exists(self.paths.get("model_dir")):
+        if not self.with_cv and os.path.exists(self.paths.get("best_pth")):
             model, optimizer, scheduler = self.load_weights(model, optimizer, scheduler)
         else:
             logger.info('==> No checkpoints found / training from scratch ..')
@@ -230,7 +254,7 @@ class Trainer(object):
             # save model if validation loss has decreased
             if micro_avg_f1 >= self.best_f1:
                 self.writer.add_scalar('Valid F1', micro_avg_f1, epoch)
-                logger.info('=> Validation F1 has increased ({:.6f} --> {:.6f})\nSaving model..'.format(
+                logger.info('==> Validation F1 has increased ({:.6f} --> {:.6f})\nSaving model..'.format(
                     self.best_f1,
                     micro_avg_f1
                     )
@@ -244,10 +268,22 @@ class Trainer(object):
                     'valid_loss': avg_valid_loss[-1],
                     'f1_score' : self.best_f1,
                     'optimizer_state_dict': optimizer.state_dict(),
-                    }, self.paths.get("model_dir")
+                    }, self.paths.get("best_pth")
                 )
-                logger.info('=> Model saved')
-            
+                logger.info('==> Best model saved!')
+            # save a snapshot every 10 epochs
+            if (epoch + 1) % 10 == 0:
+                torch.save({
+                    'epoch': epoch,
+                    'model_state_dict': model.state_dict(),
+                    'scheduler_state_dict' : scheduler.state_dict(),
+                    'train_loss' : avg_train_loss[-1],
+                    'valid_loss': avg_valid_loss[-1],
+                    'f1_score' : micro_avg_f1,
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    }, self.paths.get("snap_pth") + "snapshot_" + str(epoch+1)
+                )
+                logger.info('==> Model snapshot saved!')
             logger.info('**********************\n')
         
     def run(self):
@@ -256,7 +292,7 @@ class Trainer(object):
         2. Train model for max epochs from scratch for each fold
         3. Save the best F1 score model
         """
-        set_random_seeds()
+        set_random_seeds(self.seed)
         dataset = self.prepare_data()
         if self.with_cv:
             logger.info("==> training w/ Kfold CV ..")

@@ -55,6 +55,9 @@ def transformations(img_size, sr, duration, hop_length):
 
 def spec_augment():
     """Apply SpecAugment to each clip
+    https://www.kaggle.com/davids1992/specaugment-quick-implementation/
+    https://github.com/zcaceres/spec_augment
+    https://github.com/DemisEom/SpecAugment
     """
 
     pass

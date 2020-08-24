@@ -14,3 +14,28 @@ model.eval()
 x = model.forward(filename)
 # print(x.shape)
 
+#%%
+import pandas as pd
+from sklearn.model_selection import train_test_split
+df = pd.read_csv("../data/train_combined.csv")
+y = df.ebird_code
+X = df.loc[:, df.columns != "ebird_code"]
+X_train, X_test, _, _ = train_test_split(X, y,
+                                    random_state=42, 
+                                    test_size=0.2, 
+                                    stratify=y
+                                    )
+y_train.value_counts()/y_train.shape*100, y_test.value_counts()/y_test.shape*100
+
+#%%
+
+
+# %%
+
+# %%
+(y.value_counts()/y.shape)*100
+# %%
+y_train.index.tolist()[:5]
+# %%
+X_train.index.tolist()[:5]
+X_test.index.tolist()[:5]
