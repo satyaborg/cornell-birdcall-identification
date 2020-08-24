@@ -26,7 +26,7 @@ paths:
   best_pth: checkpoints/00_convnet/best_pth/checkpoint.pt # 00_vggish
   snap_pth: checkpoints/00_convnet/snap_pth/
   logs: logs
-  splits: data/splits.csv
+  splits: data/splits.json
 
 # melspec parameters
 mel_params:
@@ -41,7 +41,7 @@ hyperparams:
   cv: 
     name: StratifiedKFold
     splits: 3
-  epochs: 20 # 100
+  epochs: 30 # 100
   batch_size: 32
   valid_size: 0.2
   num_workers: 4
