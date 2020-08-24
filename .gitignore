@@ -5,6 +5,7 @@ venv/
 kaggle.json
 fastchirplet/
 TODO
+torchvggish/
 
 # logs 
 logs/*

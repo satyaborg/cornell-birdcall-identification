@@ -7,10 +7,12 @@ debug: 1
 seed: 42
 device: cuda
 sr: 32000
-img_size: 224 # square
+duration: 5 # chunks of 5 secs
+img_size: 224 # height (width becomes 542) 
 verbose: 1
 n_classes: 264
 threshold: 0.5 # 0.65
+model: "ConvNet" # ConvNet SimpleConvNet
 preprocess: False # set to True if resampling is required
 with_cv: False # whether to use kfold CV
 
@@ -21,23 +23,23 @@ paths:
   test: data/test.csv
   audio: data/resampled_audio
   ebird_code: data/ebird_codes.json
-  model_dir: checkpoints/00_simple_cnn/checkpoint.pt # 00_vggish
+  model_dir: checkpoints/00_convnet/checkpoint.pt # 00_vggish
   logs: logs
 
 # melspec parameters
 mel_params:
   n_mels: 128
   fmin: 20 # lowest hearable freq?
-  fmax: # sr // 2 i.e nyquist frequency?
-  # n_fft=2048
-  # hop_length=512
+  fmax: 16000 # sr // 2 i.e nyquist frequency?
+  n_fft: 2048 # default value 
+  hop_length: 512 # default value
 
 # training hyperparams
 hyperparams:
   cv: 
     name: StratifiedKFold
     splits: 3
-  epochs: 2 # 100
+  epochs: 20 # 100
   batch_size: 32
   valid_size: 0.2
   num_workers: 4

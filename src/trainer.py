@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import f1_score
 from torch.utils.tensorboard import SummaryWriter
-from src.models import SimpleConvNet # RCNN, LSTM
+from src.models import SimpleConvNet, ConvNet # RCNN, LSTM
 from src.dataset import TrainDataset
 from src.transforms import transformations 
 from src.utils import set_random_seeds
@@ -34,17 +34,21 @@ formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
+logger.info("CUDA is available : {}".format(torch.cuda.is_available()))
+
 class Trainer(object):
     def __init__(self, **config):
         self.best_f1 = 0.
         self.start_epoch = 0
         self.with_cv = config["with_cv"]
         self.ebird_code = {}
+        self.model_name = config.get("model")
         self.device = config["device"]
         self.paths = config["paths"]
         self.img_size = config["img_size"]
         self.n_classes = config.get("n_classes")
         self.threshold = config.get("threshold")
+        self.duration = config.get("duration", 5)
         self.sr = config.get("sr", 32000)
         self.hyperparams = config["hyperparams"]
         self.mel_params = config["mel_params"]
@@ -64,31 +68,11 @@ class Trainer(object):
     def prepare_data(self):
         df, _ = self.read_data()
         # get train data and apply transformations 
-        transform = transformations(self.img_size)
+        transform = transformations(self.img_size, self.sr, self.duration, self.mel_params.get("hop_length"))
         dataset = TrainDataset(df, self.sr, self.mel_params, transform, self.paths.get("audio"))
         return dataset
     
-    def load_weights(self, model, optimizer, scheduler):
-        # check for existing model.pt and load the same
-        checkpoint = torch.load(self.paths.get("model_dir"), map_location=self.device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        self.start_epoch = checkpoint['epoch'] # to resume training from this epoch
-        self.best_f1 = checkpoint['f1_score']
-        logger.info('==> checkpoint found .. start_epoch: {}, best_f1: {:.6f}'.format(self.start_epoch, self.best_f1))
-        return model, optimizer, scheduler
-
-    def train(self, dataset, **kwargs):
-        # run this to delete model and reclaim memory
-        if "model" in locals(): 
-            del model
-            gc.collect()
-            logger.info("==> Model deleted")
-        
-        avg_train_loss = []
-        avg_valid_loss = []
-        # obtain training indices that will be used for validation
+    def prepare_dataloader(self, dataset, **kwargs):
         if self.with_cv:
             train_idx, valid_idx = kwargs.get("splits")
         else:
@@ -118,10 +102,39 @@ class Trainer(object):
                                 drop_last=True
                                 )
         
+        # images, labels = next(iter(trainloader))
+        return trainloader, validloader
+
+    def load_weights(self, model, optimizer, scheduler):
+        # check for existing model.pt and load the same
+        checkpoint = torch.load(self.paths.get("model_dir"), map_location=self.device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        self.start_epoch = checkpoint['epoch'] # to resume training from this epoch
+        self.best_f1 = checkpoint['f1_score']
+        logger.info('==> checkpoint found .. start_epoch: {}, best_f1: {:.6f}'.format(self.start_epoch, self.best_f1))
+        return model, optimizer, scheduler
+    
+    def train(self, dataset, **kwargs):
+        # run this to delete model and reclaim memory
+        if "model" in locals(): 
+            del model
+            gc.collect()
+            logger.info("==> Model deleted")
+        
+        avg_train_loss = []
+        avg_valid_loss = []
+        # obtain training indices that will be used for validation
+        trainloader, validloader = self.prepare_dataloader(dataset, **kwargs)
+
         # intialize model, criterion, optimizer, scheduler
-        model = SimpleConvNet(n_classes=self.n_classes)
+        if self.model_name == "SimpleConvNet":
+            model = SimpleConvNet(n_classes=self.n_classes)
+        elif self.model_name == "ConvNet":
+            model = ConvNet(n_classes=self.n_classes)
         model.to(self.device)
-        logger.info("==> model initialized ..")
+        logger.info("==> model initialized : {}".format(self.model_name))
         # note: always use BCEWithLogitsLoss instead of (F.sigmoid + BCELoss) for numerical stability
         criterion = torch.nn.BCEWithLogitsLoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=self.hyperparams.get("lr"))
@@ -212,7 +225,7 @@ class Trainer(object):
             y_true = np.asarray(y_true, dtype=np.float32)
             micro_avg_f1 = f1_score(y_true, np.where(y_pred > self.threshold, 1, 0), average='samples') # NOT "micro"?
             scheduler.step() # call/update the scheduler
-            print('epoch: [{}/{}], validation F1-score: {:.6f}'.format(epoch+1, self.epochs, micro_avg_f1))
+            logger.info('epoch: [{}/{}], validation F1-score: {:.6f}'.format(epoch+1, self.epochs, micro_avg_f1))
             avg_valid_loss.append(np.mean(valid_epoch_loss)) # update average validation loss
             # save model if validation loss has decreased
             if micro_avg_f1 >= self.best_f1:
