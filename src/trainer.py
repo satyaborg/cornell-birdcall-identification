@@ -129,14 +129,16 @@ class Trainer(object):
         # images, labels = next(iter(trainloader))
         return trainloader, validloader
 
-    def load_weights(self, model, optimizer, scheduler):
+    def load_weights(self, last_checkpoint, model, optimizer, scheduler):
         # check for existing model.pt and load the same
-        checkpoint = torch.load(self.paths.get("best_pth"), map_location=self.device)
+        checkpoint = torch.load(last_checkpoint, map_location=self.device)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
         self.start_epoch = checkpoint['epoch'] # to resume training from this epoch
-        self.best_f1 = checkpoint['f1_score']
+        # load best model - get f1 score
+        self.best_f1 = torch.load(self.paths.get("best_pth")).get("f1_score")
+        # self.best_f1 = checkpoint['f1_score']
         logger.info('==> checkpoint found .. start_epoch: {}, best_f1: {:.6f}'.format(self.start_epoch, self.best_f1))
         return model, optimizer, scheduler
     
@@ -167,8 +169,10 @@ class Trainer(object):
                 T_max=self.hyperparams.get("t_max")
             )
         # not to be used when doing cv
-        if not self.with_cv and os.path.exists(self.paths.get("best_pth")):
-            model, optimizer, scheduler = self.load_weights(model, optimizer, scheduler)
+        checkpoints = os.listdir(self.paths.get("snap_pth"))
+        if not self.with_cv and len(checkpoints) > 1:
+            last_checkpoint = self.paths.get("snap_pth") + sorted(checkpoints, reverse=True)[0]
+            model, optimizer, scheduler = self.load_weights(last_checkpoint, model, optimizer, scheduler)
         else:
             logger.info('==> No checkpoints found / training from scratch ..')
         
@@ -281,7 +285,7 @@ class Trainer(object):
                     'valid_loss': avg_valid_loss[-1],
                     'f1_score' : micro_avg_f1,
                     'optimizer_state_dict': optimizer.state_dict(),
-                    }, self.paths.get("snap_pth") + "snapshot_" + str(epoch+1)
+                    }, self.paths.get("snap_pth") + "snapshot_" + str(epoch+1) + ".pt"
                 )
                 logger.info('==> Model snapshot saved!')
             logger.info('**********************\n')

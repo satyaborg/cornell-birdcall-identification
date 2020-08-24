@@ -31,7 +31,7 @@ paths:
 # melspec parameters
 mel_params:
   n_mels: 128
-  fmin: 20 # lowest hearable freq?
+  fmin: 30 # lowest hearable freq?
   fmax: 16000 # sr // 2 i.e nyquist frequency?
   n_fft: 2048 # default value 
   hop_length: 512 # default value
