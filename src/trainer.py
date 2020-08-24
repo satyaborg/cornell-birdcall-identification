@@ -137,7 +137,7 @@ class Trainer(object):
         if not self.with_cv and os.path.exists(self.paths.get("model_dir")) and load_saved:
             model, optimizer, scheduler = self.load_weights(model, self.optimizer, scheduler)
         else:
-            logger.info('==> Training') if load_saved else logger.info('==> No checkpoints found / training from scratch ..')
+            logger.info('==> Training') if not load_saved else logger.info('==> No checkpoints found / training from scratch ..')
             optimizer = self.optimizer
         
         logger.info('==> Training started ..')
