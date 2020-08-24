@@ -2,6 +2,16 @@
 
 Repository for Kaggle kernels, training pipeline and everything else (except raw audio data!)
 
+### Run
+Refer to `config.yaml` for required arguments and hyperparmeters.
+Execute the following to train model:
+```python
+virtualenv -p python3 venv
+source venv/bin/activate
+pip install -r requirements.txt
+python -m train
+```
+
 ### TODO
 
 #### Main tasks:
