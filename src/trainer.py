@@ -61,7 +61,7 @@ class Trainer(object):
     def read_data(self):
         train = pd.read_csv(self.paths.get("train", "data/train.csv"))
         # special cases:
-        train = train.loc[(train.filename != 'XC195038.mp3') & (train.filename != 'XC555482.mp3')]
+        train = train.loc[(train.filename != 'XC195038.mp3') & (train.filename != 'XC555482.mp3')].reset_index()
         with open(self.paths.get("ebird_code"), "r") as f:
             self.ebird_code = json.load(f)
         train['label'] = train.ebird_code.apply(lambda x : self.ebird_code[x])
