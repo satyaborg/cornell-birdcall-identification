@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, SubsetRandomSampler
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import f1_score
 from torch.utils.tensorboard import SummaryWriter
-from src.models import SimpleConvNet # RCNN, LSTM
+from src.models import SimpleConvNet, ConvLSTMCell # RCNN, LSTM
 from src.dataset import TrainDataset
 from src.transforms import transformations 
 from src.utils import set_random_seeds
@@ -51,7 +51,8 @@ class Trainer(object):
         self.mel_params = config["mel_params"]
         self.epochs = config["hyperparams"].get("epochs", 100)
         self.writer = SummaryWriter()
-        self.model = SimpleConvNet(n_classes=self.n_classes)
+        #self.model = SimpleConvNet(n_classes=self.n_classes)
+        self.model = ConvLSTMCell(input_size = 224, hidden_size = 224, n_classes=self.n_classes)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hyperparams.get("lr"))
         self.dataset = self.prepare_data()
 
