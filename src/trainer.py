@@ -54,7 +54,6 @@ class Trainer(object):
         self.model = SimpleConvNet(n_classes=self.n_classes)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hyperparams.get("lr"))
         self.dataset = self.prepare_data()
-        
 
     def read_data(self):
         train = pd.read_csv(self.paths.get("train", "data/train.csv"))
@@ -241,7 +240,6 @@ class Trainer(object):
                 logger.info('=> Model saved')
             
             logger.info('**********************\n')
-
             return avg_valid_loss[-1] # Optuna optimzes for this value; Minimizes this.
 
     def set_config(self, optimizer):
@@ -251,7 +249,7 @@ class Trainer(object):
             self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.hyperparams.get("lr"))
 
     def objective(self, trial):
-        load_saved = False
+        load_saved = False # Every time Optuna calls self.train(), it tests a new hyperparameter suggestion. So nth candidate should start training from scratch and not on top of the n-1th saved ckpt.
         optimizer = trial.suggest_categorical('optimizer', ['MomentumSGD', 'Adam'])
         #dropout_rate = trial.suggest_uniform('dropout_rate', 0.0, 1.0)
         self.set_config(optimizer)
@@ -263,6 +261,7 @@ class Trainer(object):
         1. Split to K folds (stratified)
         2. Train model for max epochs from scratch for each fold
         3. Save the best F1 score model
+        4. Optuna for Hyperparameter tuning [https://optuna.readthedocs.io/en/stable/]
         """
         set_random_seeds()
         load_saved = True # Load the saved checkpoint, if present
@@ -281,3 +280,5 @@ class Trainer(object):
             study.optimize(self.objective, n_trials=5)
             print("Optimal hyperparams: ", study.best_params)
             logger.info('=> Optimal hyperparams: {}'.format(study.best_params))
+
+            # TO_DO: Optimize Dropout Rate with Optuna
