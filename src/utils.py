@@ -22,7 +22,10 @@ def del_cuda_tensor(x):
 def show_img(dataset, i):
     img, label = dataset[i]
     print("shape: {}, label: {}".format(img.shape, label))
-    print("max: {}, min: {}".format(img.max(), img.min()))
+    print("max: {}, min: {}, mean: {}, std: {}".format(img.max(), 
+                                                        img.min(),
+                                                        img.mean(),
+                                                        img.std()))
     plt.imshow(img[0,:,:])
 
 def show_waveplot(path, **config): 
@@ -68,4 +71,5 @@ def check_npy(path):
         print(e)
         pass # or return a empty np.ndarray
 
+    
     

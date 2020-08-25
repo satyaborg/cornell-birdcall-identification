@@ -1,5 +1,7 @@
 import torch.nn as nn
-from src.torchvggish import torchvggish
+# from src.torchvggish import torchvggish
+# import torchvision.models as pretrained
+# model = pretrained.vgg16(pretrained=True)
 
 class SimpleConvNet(nn.Module):
     """Simple CNN; returns raw logits
@@ -70,7 +72,7 @@ class SimpleConvNet(nn.Module):
 
 class ConvNet(nn.Module):
     """Processes 5 sec clips
-    Image size: 224 x 224
+    Image size: 1 x 224 x 224 [c x w x h]
     n_layers = 5
     https://cs231n.github.io/convolutional-networks/
     when 3x3 filters padding 1 
@@ -82,7 +84,7 @@ class ConvNet(nn.Module):
         self.fcn = 1024 # 4096
         self.n_classes = n_classes
         self.layer1 = nn.Sequential(
-            nn.Conv2d(in_channels=3, 
+            nn.Conv2d(in_channels=1, 
                       out_channels=32, 
                       kernel_size=7, 
                       stride=1, 

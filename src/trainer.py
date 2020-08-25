@@ -52,7 +52,6 @@ class Trainer(object):
         self.n_classes = config.get("n_classes")
         self.threshold = config.get("threshold")
         self.duration = config.get("duration", 5)
-        self.sr = config.get("sr", 32000)
         self.hyperparams = config["hyperparams"]
         self.mel_params = config["mel_params"]
         self.epochs = config["hyperparams"].get("epochs", 100)
@@ -71,8 +70,9 @@ class Trainer(object):
     def prepare_data(self):
         self.df, _ = self.read_data()
         # get train data and apply transformations 
-        transform = transformations(self.img_size, self.sr, self.duration, self.mel_params.get("hop_length"))
-        dataset = TrainDataset(self.df, self.sr, self.mel_params, transform, self.paths.get("audio"))
+        # aug_params = dict()
+        transform = transformations(self.img_size, self.duration, self.mel_params)
+        dataset = TrainDataset(self.df, transform, self.paths.get("audio"))
         return dataset
 
     def train_test_splits(self):
@@ -125,7 +125,6 @@ class Trainer(object):
                                 # collate_fn=collate_fn,
                                 drop_last=True
                                 )
-        
         # images, labels = next(iter(trainloader))
         return trainloader, validloader
 
@@ -135,11 +134,14 @@ class Trainer(object):
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        self.start_epoch = checkpoint['epoch'] # to resume training from this epoch
+        self.start_epoch = checkpoint['epoch'] + 1 # to resume training from this epoch
+        logger.info("==> checkpoint found .. last_epoch: {}".format(self.start_epoch))
         # load best model - get f1 score
-        self.best_f1 = torch.load(self.paths.get("best_pth")).get("f1_score")
+        best_model = torch.load(self.paths.get("best_pth"))
+        self.best_f1 = best_model.get("f1_score")
+        best_epoch = best_model.get("epoch")
         # self.best_f1 = checkpoint['f1_score']
-        logger.info('==> checkpoint found .. start_epoch: {}, best_f1: {:.6f}'.format(self.start_epoch, self.best_f1))
+        logger.info('==> best model found .. best_epoch: {}, best_f1: {:.6f}'.format(best_epoch, self.best_f1))
         return model, optimizer, scheduler
     
     def train(self, dataset, **kwargs):

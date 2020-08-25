@@ -6,9 +6,8 @@ debug: 1
 # global
 seed: 42
 device: cuda
-sr: 32000
 duration: 5 # chunks of 5 secs
-img_size: 224 # height (width becomes 542) 
+img_size: 224 # height (width becomes 542 if not square) 
 verbose: 1
 n_classes: 264
 threshold: 0.5 # 0.65
@@ -23,25 +22,26 @@ paths:
   test: data/test.csv
   audio: data/resampled_audio
   ebird_code: data/ebird_codes.json
-  best_pth: checkpoints/00_convnet/best_pth/checkpoint.pt # 00_vggish
-  snap_pth: checkpoints/00_convnet/snap_pth/
+  best_pth: checkpoints/00_convnet_spec_aug/best_pth/checkpoint.pt # 00_vggish
+  snap_pth: checkpoints/00_convnet_spec_aug/snap_pth/
   logs: logs
   splits: data/splits.json
 
 # melspec parameters
 mel_params:
+  sr: 32000
   n_mels: 128
   fmin: 30 # lowest hearable freq?
   fmax: 16000 # sr // 2 i.e nyquist frequency?
   n_fft: 2048 # default value 
   hop_length: 512 # default value
-
+  min_db: -80
 # training hyperparams
 hyperparams:
   cv: 
     name: StratifiedKFold
     splits: 3
-  epochs: 30 # 100
+  epochs: 70 # 100
   batch_size: 32
   valid_size: 0.2
   num_workers: 4

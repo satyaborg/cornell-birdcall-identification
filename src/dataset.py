@@ -4,12 +4,8 @@ from torch.utils.data import Dataset
 
 class TrainDataset(Dataset):
     """Custom pytorch dataset"""
-    def __init__(self, data: pd.DataFrame, sr: int, 
-                mel_params: dict={}, transform=None,
-                audio_dir=None):
+    def __init__(self, data: pd.DataFrame, transform=None, audio_dir=None):
         self.data = data
-        self.sr = sr
-        self.mel_params = mel_params
         self.transform = transform
         self.audio_dir = audio_dir
     

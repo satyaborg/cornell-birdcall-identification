@@ -1,2 +1,2 @@
 #!/bin/sh
-python3 -m tensorboard.main --logdir=logs/
+python3 -m tensorboard.main --logdir=runs/
