@@ -21,7 +21,7 @@ python -m train
 - [x] Stratified KFold
 - [x] Implement: SimpleCNN (full clip), ConvNet (5 sec segments)
 - [x] Random crop 5 seconds per clip during training
-- [x] [SpecAugment](https://github.com/DemisEom/SpecAugment)
+- [x] [SpecAugment](https://arxiv.org/abs/1904.08779)
 - [ ] Handle class imbalance
 - [ ] Mixup
 - [ ] Implement Recurrent ConvNet / ConvLSTM OR Bidirectional LSTM
