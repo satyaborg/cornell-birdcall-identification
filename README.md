@@ -22,6 +22,7 @@ python -m train
 - [x] Implement: SimpleCNN (full clip), ConvNet (5 sec segments)
 - [x] Random crop 5 seconds per clip during training
 - [x] [SpecAugment](https://arxiv.org/abs/1904.08779)
+- [x] Extend/fill clips with duraction less than 5 sec (experimental!)
 - [ ] Handle class imbalance
 - [ ] Mixup
 - [ ] Implement Recurrent ConvNet / ConvLSTM OR Bidirectional LSTM

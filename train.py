@@ -5,7 +5,7 @@
 from src import config
 from src.trainer import Trainer
 from src.preprocessor import Preprocessor
-from src.utils import show_melspec, show_img, get_out_size
+from src.utils import show_melspec, show_img, get_out_size, get_stats
 
 if __name__ == "__main__":
     if config["preprocess"]:
@@ -15,7 +15,11 @@ if __name__ == "__main__":
     trainer = Trainer(**config)
     trainer.run()
     
-    # test --
-    # idx = 0
+    # testing --
+    # idx = 300
+    # train, test = trainer.read_data()
     # dataset = trainer.prepare_data()
+    # trainloader, validloader = trainer.prepare_dataloader(dataset)
+    # mean, std = get_stats(trainloader)
+    # print("mean : {}, std: {}".format(mean, std))
     # show_img(dataset, idx)

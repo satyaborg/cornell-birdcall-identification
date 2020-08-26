@@ -1,6 +1,7 @@
 from torchvision import transforms, utils
 import numpy as np
 import random
+import math
 import PIL
 # custom libraries
 # fast chirplet transformation
@@ -38,10 +39,10 @@ def mono_to_color(X,
     else:
         # Just zero
         V = np.zeros_like(Xstd, dtype=np.uint8)
-    # print(V.max(), V.min())
+    # print(V.max(), V.min(), V.mean(), V.std())
     return V
 
-def transformations(img_size, duration, mel_params):
+def transformations(img_size, duration, mel_params, img_stats):
     """Transformations and augmentations
     crop, resize, normalize/standardize, specaug
     if (duration*sr i.e. 5 dec chunk) > length of clip, then random pad with zeros  
@@ -49,6 +50,7 @@ def transformations(img_size, duration, mel_params):
     crop_width = duration * (mel_params.get("sr") // mel_params.get("hop_length"))
     mask_percentage = 0.075
     return transforms.Compose([
+            transforms.Lambda(lambda img: extend_clip(img, crop_width)), # extend clip < 5 secs
             transforms.ToPILImage(), # covert to PIL image
             transforms.RandomCrop(size=(mel_params.get("n_mels"), crop_width), 
                                 pad_if_needed=True, 
@@ -66,11 +68,21 @@ def transformations(img_size, duration, mel_params):
                                 )
                             ), # Apply SpecAugment
             # transforms.Lambda(lambda img: img / 255),
-            transforms.ToTensor() # normalizes values to be [0,1]
-            # transforms.Normalize(mean=mean, std=std)
+            # image = (image / 255.0).astype(np.float32)
+            transforms.ToTensor(), # normalizes values to be [0,1]
+            # transforms.Normalize(mean=img_stats.get("mean"), std=img_stats.get("std"))
             ])
 
-def spec_augment(spec: np.ndarray, num_mask=2, 
+def extend_clip(spec: np.ndarray, crop_width):
+    """If duration is < 5 secs, fill clip by repeating 
+    note: experimental!
+    """
+    if spec.shape[1] < crop_width:
+        n_reps = math.ceil((crop_width - spec.shape[1])/spec.shape[1])
+        spec = np.tile(spec, n_reps)[:, :crop_width]
+    return spec
+
+def spec_augment(spec: np.ndarray, num_mask=2,
                  freq_masking_max_percentage=0.15, 
                  time_masking_max_percentage=0.3,
                  use_zero=True):

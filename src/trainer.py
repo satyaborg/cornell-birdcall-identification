@@ -55,6 +55,7 @@ class Trainer(object):
         self.hyperparams = config["hyperparams"]
         self.mel_params = config["mel_params"]
         self.epochs = config["hyperparams"].get("epochs", 100)
+        self.img_stats = config.get("img_stats")
         self.writer = SummaryWriter()
 
     def read_data(self):
@@ -71,7 +72,10 @@ class Trainer(object):
         self.df, _ = self.read_data()
         # get train data and apply transformations 
         # aug_params = dict()
-        transform = transformations(self.img_size, self.duration, self.mel_params)
+        transform = transformations(self.img_size, 
+                                    self.duration, 
+                                    self.mel_params,
+                                    self.img_stats)
         dataset = TrainDataset(self.df, transform, self.paths.get("audio"))
         return dataset
 
@@ -172,7 +176,7 @@ class Trainer(object):
             )
         # not to be used when doing cv
         checkpoints = os.listdir(self.paths.get("snap_pth"))
-        if not self.with_cv and len(checkpoints) > 1:
+        if not self.with_cv and len(checkpoints) > 0:
             last_checkpoint = self.paths.get("snap_pth") + sorted(checkpoints, reverse=True)[0]
             model, optimizer, scheduler = self.load_weights(last_checkpoint, model, optimizer, scheduler)
         else:

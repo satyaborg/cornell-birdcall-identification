@@ -15,6 +15,15 @@ model: "ConvNet" # ConvNet SimpleConvNet
 preprocess: False # set to True if resampling is required
 with_cv: False # whether to use kfold CV
 
+# copy image stats here after using src.utils.get_stats()
+img_stats:
+  mean: 0.3695
+  std: 0.1585
+# with transforms:
+# mean : tensor([0.3695]), std: tensor([0.1585])
+# mean : tensor([0.3825]), std: tensor([0.1548])
+# mean : tensor([0.3750]), std: tensor([0.1463])
+
 # filepaths
 paths:
   root: kaggle/cornell-birdcall-identification

@@ -19,6 +19,31 @@ def del_cuda_tensor(x):
     del x
     torch.cuda.empty_cache()
 
+def get_stats(trainloader):
+    """return per channel mean, stdev to be used for 
+    standardizing
+    Note: Always use trainset parameters (mean, stdev) to standardize the testset
+    originally from: https://discuss.pytorch.org/t/about-normalization-using-pre-trained-vgg16-networks/23560/6
+    modified from: https://stackoverflow.com/a/60803379/8277194
+    """
+    n_images = 0
+    mean = 0.0
+    var = 0.0
+    for batch, _ in trainloader:
+        # print(batch_target.max(), batch_target.min())
+        # Rearrange batch to be the shape of [B, C, W * H]
+        batch = batch.view(batch.size(0), batch.size(1), -1)
+        # Update total number of images
+        n_images += batch.size(0)
+        # Compute mean and std here
+        mean += batch.mean(2).sum(0) 
+        var += batch.var(2).sum(0)
+
+    mean /= n_images
+    var /= n_images
+    std = torch.sqrt(var) # cannot take the average of individual std!
+    return mean, std
+
 def show_img(dataset, i):
     img, label = dataset[i]
     print("shape: {}, label: {}".format(img.shape, label))
