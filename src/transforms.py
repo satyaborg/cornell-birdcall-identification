@@ -67,8 +67,6 @@ def transformations(img_size, duration, mel_params, img_stats):
                                 use_zero=False
                                 )
                             ), # Apply SpecAugment
-            # transforms.Lambda(lambda img: img / 255),
-            # image = (image / 255.0).astype(np.float32)
             transforms.ToTensor(), # normalizes values to be [0,1]
             # transforms.Normalize(mean=img_stats.get("mean"), std=img_stats.get("std"))
             ])

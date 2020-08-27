@@ -18,6 +18,7 @@ if __name__ == "__main__":
     # testing --
     # idx = 300
     # train, test = trainer.read_data()
+    # train.ebird_code.value_counts().plot(kind="bar")
     # dataset = trainer.prepare_data()
     # trainloader, validloader = trainer.prepare_dataloader(dataset)
     # mean, std = get_stats(trainloader)

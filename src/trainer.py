@@ -9,12 +9,11 @@ import torch
 from torch.functional import F
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from sklearn.model_selection import train_test_split, StratifiedKFold
-from sklearn.metrics import f1_score
 from torch.utils.tensorboard import SummaryWriter
 from src.models import SimpleConvNet, ConvNet # RCNN, LSTM
 from src.dataset import TrainDataset
 from src.transforms import transformations 
-from src.utils import set_random_seeds
+from src.utils import set_random_seeds, metrics
 from fastprogress import progress_bar
 from time import strftime
 import logging
@@ -56,6 +55,7 @@ class Trainer(object):
         self.mel_params = config["mel_params"]
         self.epochs = config["hyperparams"].get("epochs", 100)
         self.img_stats = config.get("img_stats")
+        self.show_report = config.get("show_report")
         self.writer = SummaryWriter()
 
     def read_data(self):
@@ -135,15 +135,24 @@ class Trainer(object):
     def load_weights(self, last_checkpoint, model, optimizer, scheduler):
         # check for existing model.pt and load the same
         checkpoint = torch.load(last_checkpoint, map_location=self.device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        self.start_epoch = checkpoint['epoch'] + 1 # to resume training from this epoch
+        best_model = torch.load(self.paths.get("best_pth"), map_location=self.device)
+
+        checkpoint_epoch = checkpoint.get("epoch")
+        best_epoch = best_model.get("epoch")
+        if int(checkpoint_epoch) > int(best_epoch):
+            model.load_state_dict(checkpoint['model_state_dict'])
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+            self.start_epoch = checkpoint['epoch'] + 1 # to resume training from this epoch
+        else:
+            model.load_state_dict(best_model['model_state_dict'])
+            optimizer.load_state_dict(best_model['optimizer_state_dict'])
+            scheduler.load_state_dict(best_model['scheduler_state_dict'])
+            self.start_epoch = best_model['epoch'] + 1 # to resume training from this epoch
+
         logger.info("==> checkpoint found .. last_epoch: {}".format(self.start_epoch))
         # load best model - get f1 score
-        best_model = torch.load(self.paths.get("best_pth"))
         self.best_f1 = best_model.get("f1_score")
-        best_epoch = best_model.get("epoch")
         # self.best_f1 = checkpoint['f1_score']
         logger.info('==> best model found .. best_epoch: {}, best_f1: {:.6f}'.format(best_epoch, self.best_f1))
         return model, optimizer, scheduler
@@ -169,7 +178,8 @@ class Trainer(object):
         logger.info("==> model initialized : {}".format(self.model_name))
         # note: always use BCEWithLogitsLoss instead of (F.sigmoid + BCELoss) for numerical stability
         criterion = torch.nn.BCEWithLogitsLoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=self.hyperparams.get("lr"))
+        # using AdamW
+        optimizer = torch.optim.AdamW(model.parameters(), lr=self.hyperparams.get("lr")) # Adam
         if self.hyperparams.get("scheduler") == "CosineAnnealingLR":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
                 T_max=self.hyperparams.get("t_max")
@@ -177,7 +187,7 @@ class Trainer(object):
         # not to be used when doing cv
         checkpoints = os.listdir(self.paths.get("snap_pth"))
         if not self.with_cv and len(checkpoints) > 0:
-            last_checkpoint = self.paths.get("snap_pth") + sorted(checkpoints, reverse=True)[0]
+            last_checkpoint = self.paths.get("snap_pth") + checkpoints[0] # sorted(checkpoints, reverse=True)[0]
             model, optimizer, scheduler = self.load_weights(last_checkpoint, model, optimizer, scheduler)
         else:
             logger.info('==> No checkpoints found / training from scratch ..')
@@ -204,7 +214,6 @@ class Trainer(object):
                 optimizer.step() # weight update
                 train_loss += loss.item()
                 train_epoch_loss.append(loss.item())
-                self.writer.add_scalar('Train loss', loss.item(), step + 1)
                 # ===================log========================
                 if (step + 1) % 50 == 0:
                     logger.info(
@@ -220,6 +229,7 @@ class Trainer(object):
                 # ==============================================
 
             avg_train_loss.append(np.mean(train_epoch_loss))
+            self.writer.add_scalar('loss/training', avg_train_loss[-1], epoch+1)
             logger.info('==> Validation ..')
             # validation
             with torch.no_grad(): # turn off gradient calc
@@ -238,7 +248,7 @@ class Trainer(object):
                     y_pred.extend(preds.cpu().detach().numpy().tolist())
                     valid_loss += loss.item()
                     valid_epoch_loss.append(loss.item())
-                    self.writer.add_scalar('Valid loss', loss.item(), step + 1)
+                    # self.writer.add_scalar('Valid loss', loss.item(), step + 1)
                     # ===================log========================
                     if (step + 1) % 50 == 0:
                         logger.info(
@@ -257,14 +267,24 @@ class Trainer(object):
             # https://www.kaggle.com/shonenkov/competition-metrics
             y_pred = np.asarray(y_pred, dtype=np.float32)
             y_true = np.asarray(y_true, dtype=np.float32)
-            micro_avg_f1 = f1_score(y_true, np.where(y_pred > self.threshold, 1, 0), average='samples') # NOT "micro"?
+            micro_avg_f1, cls_report, mAP, auc_score = metrics(y_true=y_true, y_pred=y_pred, show_report=self.show_report, threshold=self.threshold)
+            
             scheduler.step() # call/update the scheduler
-            logger.info('epoch: [{}/{}], validation F1-score: {:.6f}'.format(epoch+1, self.epochs, micro_avg_f1))
+
+            if self.show_report: logger.info("==> classification Report: \n{}".format(cls_report))
+            logger.info("==> mAP : {}".format(mAP))
+            logger.info("==> AUC-ROC score : {}".format(auc_score))
+            logger.info('==> epoch: [{}/{}], validation F1-score: {:.6f}'.format(epoch+1, self.epochs, micro_avg_f1))
             avg_valid_loss.append(np.mean(valid_epoch_loss)) # update average validation loss
+
+            self.writer.add_scalar('loss/validation', avg_valid_loss[-1], epoch+1)
+            self.writer.add_scalar('mAP', mAP, epoch+1)
+            self.writer.add_scalar('AUC_ROC', auc_score, epoch+1)
+            self.writer.add_scalar('valid F1', micro_avg_f1, epoch+1)
             # save model if validation loss has decreased
             if micro_avg_f1 >= self.best_f1:
-                self.writer.add_scalar('Valid F1', micro_avg_f1, epoch)
-                logger.info('==> Validation F1 has increased ({:.6f} --> {:.6f})\nSaving model..'.format(
+                self.writer.add_scalar('Best Valid F1', micro_avg_f1, epoch+1)
+                logger.info('==> Validation F1 has increased ({:.6f} --> {:.6f}) / Saving model..'.format(
                     self.best_f1,
                     micro_avg_f1
                     )
@@ -282,7 +302,7 @@ class Trainer(object):
                 )
                 logger.info('==> Best model saved!')
             # save a snapshot every 10 epochs
-            if (epoch + 1) % 10 == 0:
+            if (epoch + 1) % 5 == 0:
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
@@ -291,7 +311,7 @@ class Trainer(object):
                     'valid_loss': avg_valid_loss[-1],
                     'f1_score' : micro_avg_f1,
                     'optimizer_state_dict': optimizer.state_dict(),
-                    }, self.paths.get("snap_pth") + "snapshot_" + str(epoch+1) + ".pt"
+                    }, self.paths.get("snap_pth") + "snapshot.pt"
                 )
                 logger.info('==> Model snapshot saved!')
             logger.info('**********************\n')

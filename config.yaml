@@ -14,6 +14,7 @@ threshold: 0.5 # 0.65
 model: "ConvNet" # ConvNet SimpleConvNet
 preprocess: False # set to True if resampling is required
 with_cv: False # whether to use kfold CV
+show_report: False
 
 # copy image stats here after using src.utils.get_stats()
 img_stats:

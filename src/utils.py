@@ -4,6 +4,7 @@ import torch
 import librosa
 import matplotlib.pyplot as plt
 import os
+from sklearn.metrics import roc_auc_score, multilabel_confusion_matrix, classification_report, average_precision_score, f1_score
 
 def set_random_seeds(seed: int = 42):
     random.seed(seed) # python random seed 
@@ -43,6 +44,23 @@ def get_stats(trainloader):
     var /= n_images
     std = torch.sqrt(var) # cannot take the average of individual std!
     return mean, std
+
+def metrics(y_true, y_pred, show_report=False, threshold=0.5):
+    """return a AUC-ROC score
+    """
+    cls_report = None
+    # y_true = np.array([[0,0,0,1,1], [0,0,1,0,1]])
+    # y_pred = np.array([[0.6,0,0,0,0.7], [0,0,0.3,0,1]])
+    # codes = ["x", "y", "z", "a", "b"] # df.ebird_code.unique().tolist()
+    y_scores = np.where(y_pred > threshold, 1, 0)
+    # print("True:\n ", y_true)
+    # print("Predicted:\n ", y_scores)
+    # cm = multilabel_confusion_matrix(y_true, y_scores) #, labels=codes)
+    micro_avg_f1 = f1_score(y_true, y_scores, average='samples')
+    if show_report: cls_report = classification_report(y_true,y_scores) 
+    mAP = average_precision_score(y_true, y_scores, average="samples")
+    auc_score = roc_auc_score(y_true, y_scores, average="samples")
+    return micro_avg_f1, cls_report, mAP, auc_score
 
 def show_img(dataset, i):
     img, label = dataset[i]

@@ -19,11 +19,12 @@ python -m train
 - [x] Implement training and validation pipeline
 - [x] Implement submission notebook
 - [x] Stratified KFold
-- [x] Implement: SimpleCNN (full clip), ConvNet (5 sec segments)
+- [x] Implement SimpleCNN (full clip), ConvNet (5 sec segments)
 - [x] Random crop 5 seconds per clip during training
 - [x] [SpecAugment](https://arxiv.org/abs/1904.08779)
-- [x] Extend/fill clips with duraction less than 5 sec (experimental!)
+- [x] Extend/fill clips with duration less than 5 sec (experimental!)
 - [ ] Handle class imbalance
+- [ ] Threshold moving (current default=0.5)?
 - [ ] Mixup
 - [ ] Implement Recurrent ConvNet / ConvLSTM OR Bidirectional LSTM
 - [ ] Extract secondary labels and use for training
@@ -40,7 +41,6 @@ python -m train
 - [ ] Add [Optuna](https://github.com/optuna/optuna) for hyperparameter tuning; Also check [Ray](https://github.com/ray-project/ray)
 - [ ] Standard sound augmentation for raw inputs to LSTM (pitch shift etc)
 - [ ] Sound Event Detection (SED)
-
 
 ### Papers
 - [Bird Identification from Timestamped,Geotagged Audio Recordings](http://ceur-ws.org/Vol-2125/paper_181.pdf)
