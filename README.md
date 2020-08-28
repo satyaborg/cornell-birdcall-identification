@@ -23,6 +23,8 @@ python -m train
 - [x] Random crop 5 seconds per clip during training
 - [x] [SpecAugment](https://arxiv.org/abs/1904.08779)
 - [x] Extend/fill clips with duration less than 5 sec (experimental!)
+- [ ] [VGG16/VGG19](https://pytorch.org/hub/pytorch_vision_vgg/)
+- [ ] Test time augmentation
 - [ ] Handle class imbalance
 - [ ] Threshold moving (current default=0.5)?
 - [ ] Mixup

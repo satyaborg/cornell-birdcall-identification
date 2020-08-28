@@ -49,27 +49,22 @@ def metrics(y_true, y_pred, show_report=False, threshold=0.5):
     """return a AUC-ROC score
     """
     cls_report = None
-    # y_true = np.array([[0,0,0,1,1], [0,0,1,0,1]])
-    # y_pred = np.array([[0.6,0,0,0,0.7], [0,0,0.3,0,1]])
-    # codes = ["x", "y", "z", "a", "b"] # df.ebird_code.unique().tolist()
     y_scores = np.where(y_pred > threshold, 1, 0)
-    # print("True:\n ", y_true)
-    # print("Predicted:\n ", y_scores)
-    # cm = multilabel_confusion_matrix(y_true, y_scores) #, labels=codes)
     micro_avg_f1 = f1_score(y_true, y_scores, average='samples')
     if show_report: cls_report = classification_report(y_true,y_scores) 
     mAP = average_precision_score(y_true, y_scores, average="samples")
     auc_score = roc_auc_score(y_true, y_scores, average="samples")
     return micro_avg_f1, cls_report, mAP, auc_score
 
-def show_img(dataset, i):
+def show_img(dataset, i, dim=0):
+    # print(dataset[i].shape)
     img, label = dataset[i]
     print("shape: {}, label: {}".format(img.shape, label))
     print("max: {}, min: {}, mean: {}, std: {}".format(img.max(), 
                                                         img.min(),
                                                         img.mean(),
                                                         img.std()))
-    plt.imshow(img[0,:,:])
+    plt.imshow(img[dim,:,:]);
 
 def show_waveplot(path, **config): 
     x = np.load(config.get("paths")["audio"] + "/" + path)
@@ -82,13 +77,13 @@ def play_audio(path, **config):
 def show_melspec(path, **config):
     # https://stackoverflow.com/a/38923511/8277194
     # 512/32000 per hop
-    x = np.load(config.get("paths")["audio"] + "/" + path)[:, :]
+    x = np.load(config.get("paths")["audio"] + "/" + path)#[:, :]
     print("mel-spec shape: {}".format(x.shape))
     # times = librosa.frames_to_time(x[1], sr=config.get("sr"))
     # print(times)
 
     librosa.display.specshow(x, y_axis='mel', x_axis='time', 
-                             sr=config.get("sr"),
+                             sr=config["mel_params"].get("sr"),
                              hop_length=config["mel_params"].get('hop_length', 512), 
                              fmin=config["mel_params"].get("fmin"), fmax=config["mel_params"].get("fmax")
                             # cmap=cm.jet # change color map
@@ -97,6 +92,21 @@ def show_melspec(path, **config):
     # plt.colorbar(format='%+2.0f dB')
     # plt.title(path)
     # plt.show();
+
+# def show_melspec(path):
+#     x = np.load(path)
+#     print(x.shape)
+#     librosa.display.specshow(x, y_axis='mel', x_axis='time', 
+#                              hop_length=mel_params.get('hop_length', 512), 
+#                              fmin=mel_params['fmin'], fmax=mel_params['fmax'],
+# #                              cmap=cm.jet # change color map
+#                             );
+# #     plt.figure(figsize=(25,60))
+
+#     plt.colorbar(format='%+2.0f dB')
+#     plt.title(path)
+#     plt.show();
+#     return x
 
 # https://adventuresinmachinelearning.com/convolutional-neural-networks-tutorial-in-pytorch/
 def get_out_size(width_in: int, kernel_size: int, stride: int, padding: int):

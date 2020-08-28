@@ -11,7 +11,9 @@ img_size: 224 # height (width becomes 542 if not square)
 verbose: 1
 n_classes: 264
 threshold: 0.5 # 0.65
-model: "ConvNet" # ConvNet SimpleConvNet
+model: VGG16bn # ConvNet SimpleConvNet
+use_pretrained: True
+feature_extract: True 
 preprocess: False # set to True if resampling is required
 with_cv: False # whether to use kfold CV
 show_report: False
@@ -32,8 +34,8 @@ paths:
   test: data/test.csv
   audio: data/resampled_audio
   ebird_code: data/ebird_codes.json
-  best_pth: checkpoints/00_convnet_spec_aug/best_pth/checkpoint.pt # 00_vggish
-  snap_pth: checkpoints/00_convnet_spec_aug/snap_pth/
+  best_pth: checkpoints/00_vgg16/best_pth/checkpoint.pt # 00_vggish
+  snap_pth: checkpoints/00_vgg16/snap_pth/
   logs: logs
   splits: data/splits.json
 
@@ -51,10 +53,11 @@ hyperparams:
   cv: 
     name: StratifiedKFold
     splits: 3
-  epochs: 70 # 100
+  epochs: 50 # 100
   batch_size: 32
   valid_size: 0.2
   num_workers: 4
   scheduler: CosineAnnealingLR
   lr: 0.001
+  wd: 0.01
   t_max: 10

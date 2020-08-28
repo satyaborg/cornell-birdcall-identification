@@ -82,3 +82,61 @@ roc_auc_score(y_true, y_scores, average="samples")
 
 
 # np.random.randint(0,2)
+
+
+#%%
+import torch
+from torchvision import models
+from torch import nn
+
+use_pretrained =True
+feature_extract=True
+num_classes = 264
+def set_parameter_requires_grad(model, feature_extract):
+    # source: https://pytorch.org/tutorials/beginner/finetuning_torchvision_models_tutorial.html
+    # Freeze training for all layers
+    if feature_extract:
+        for param in model.parameters():
+            param.requires_grad = False
+
+# Load the pretrained model from pytorch
+model = models.vgg16_bn(pretrained=use_pretrained, progress=True)
+set_parameter_requires_grad(model, feature_extract=True)
+num_features = model.classifier[6].in_features
+model.classifier[6] = nn.Linear(num_features, num_classes) # [4096, 264]
+# model.load_state_dict(torch.load("../input/vgg16bn/vgg16_bn.pth"))
+print(model)
+# Sequential(
+#   (0): Linear(in_features=25088, out_features=4096, bias=True)
+#   (1): ReLU(inplace=True)
+#   (2): Dropout(p=0.5, inplace=False)
+#   (3): Linear(in_features=4096, out_features=4096, bias=True)
+#   (4): ReLU(inplace=True)
+#   (5): Dropout(p=0.5, inplace=False)
+#   (6): Linear(in_features=4096, out_features=1000, bias=True)
+# )
+# print(model.classifier[6].out_features) # 1000
+
+# for param in model.features.parameters():
+#     param.require_grad = False
+
+# Newly created modules have require_grad=True by default
+
+# model = models.vgg11_bn(pretrained=use_pretrained)
+# set_parameter_requires_grad(model, feature_extract)
+# num_features = model.classifier[6].in_features
+# model_ft.classifier[6] = nn.Linear(num_features, num_classes)
+# input_size = 224
+
+
+
+#%%
+import numpy as np
+x = np.random.random([224,224,3])
+# print(x)
+print(x.shape)
+def f(x):
+    # print(x)
+    return x*0
+
+np.apply_along_axis(f, 2, x)# %%

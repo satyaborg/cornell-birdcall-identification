@@ -10,8 +10,8 @@ from torch.functional import F
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from torch.utils.tensorboard import SummaryWriter
-from src.models import SimpleConvNet, ConvNet # RCNN, LSTM
-from src.dataset import TrainDataset
+from src.models import SimpleConvNet, ConvNet, VGG16bn # RCNN, LSTM
+from src.dataset import BirdcallDataset
 from src.transforms import transformations 
 from src.utils import set_random_seeds, metrics
 from fastprogress import progress_bar
@@ -20,7 +20,7 @@ import logging
 
 # logs to file
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', 
-                    filename="logs/" + strftime("%Y_%m_%d_%H_%M.log"), 
+                    filename="logs/" + strftime("%b%d_%H-%M-%s.log"), # tensorboard format
                     filemode="w", 
                     level=logging.INFO
                     )
@@ -56,6 +56,8 @@ class Trainer(object):
         self.epochs = config["hyperparams"].get("epochs", 100)
         self.img_stats = config.get("img_stats")
         self.show_report = config.get("show_report")
+        self.use_pretrained = config.get("use_pretrained")
+        self.feature_extract = config.get("feature_extract")
         self.writer = SummaryWriter()
 
     def read_data(self):
@@ -70,14 +72,24 @@ class Trainer(object):
 
     def prepare_data(self):
         self.df, _ = self.read_data()
-        # get train data and apply transformations 
-        # aug_params = dict()
-        transform = transformations(self.img_size, 
+        self.train_test_splits()
+        train_idx, valid_idx = self.splits.get("train_idx"), self.splits.get("valid_idx")
+        data = dict(train=self.df.iloc[train_idx,:], valid=self.df.iloc[valid_idx, :])
+        # get train data and apply transformations
+        transforms = transformations(self.img_size, 
                                     self.duration, 
                                     self.mel_params,
                                     self.img_stats)
-        dataset = TrainDataset(self.df, transform, self.paths.get("audio"))
-        return dataset
+        datasets = {
+            x: BirdcallDataset(
+                data=data[x],
+                transform=transforms[x],
+                audio_dir=self.paths.get("audio")
+            )
+            for x in ["train", "valid"]
+        }
+        # dataset = TrainDataset(self.df, transform, self.paths.get("audio"))
+        return datasets
 
     def train_test_splits(self):
         splits_path = self.paths.get("splits")
@@ -98,39 +110,34 @@ class Trainer(object):
             with open(self.paths.get("splits"), "w") as file:
                 json.dump(self.splits, file)
     
-    def prepare_dataloader(self, dataset, **kwargs):
-        if self.with_cv:
-            train_idx, valid_idx = kwargs.get("splits")
-        else:
-            self.train_test_splits()
-            # num_train = len(dataset)
-            # indices = list(range(num_train))
-            # np.random.shuffle(indices)
-            # split = int(np.floor(self.hyperparams.get("valid_size") * num_train))
-            # train_idx, valid_idx = indices[split:], indices[:split]
-        
+    def prepare_dataloader(self, datasets, **kwargs):
+        # if self.with_cv:
+        #     train_idx, valid_idx = kwargs.get("splits")
+        # else:
+        #     self.train_test_splits()
+        # num_train = len(dataset)
+        # indices = list(range(num_train))
+        # np.random.shuffle(indices)
+        # split = int(np.floor(self.hyperparams.get("valid_size") * num_train))
+        # train_idx, valid_idx = indices[split:], indices[:split]
         # define samplers for obtaining training and validation batches
-        train_idx, valid_idx = self.splits.get("train_idx"), self.splits.get("valid_idx")
-        train_sampler = SubsetRandomSampler(train_idx)
-        valid_sampler = SubsetRandomSampler(valid_idx)
-        trainloader = DataLoader(dataset,
-                                batch_size=self.hyperparams.get("batch_size"),
-                                sampler=train_sampler,
-                                num_workers=self.hyperparams.get("num_workers"),
-                                pin_memory=True,
-                                # collate_fn=collate_fn,
-                                drop_last=True
-                                )
-        validloader = DataLoader(dataset, 
-                                batch_size=self.hyperparams.get("batch_size"), 
-                                sampler=valid_sampler, 
-                                num_workers=self.hyperparams.get("num_workers"), 
-                                pin_memory=True,
-                                # collate_fn=collate_fn,
-                                drop_last=True
-                                )
+        # train_idx, valid_idx = self.splits.get("train_idx"), self.splits.get("valid_idx")
+        # train_sampler = SubsetRandomSampler(train_idx)
+        # valid_sampler = SubsetRandomSampler(valid_idx)
+        dataloaders = (
+            DataLoader(
+                datasets[x], 
+                batch_size=self.hyperparams.get("batch_size"),
+                shuffle=True,
+                num_workers=self.hyperparams.get("num_workers"),
+                pin_memory=True,
+                # collate_fn=collate_fn,
+                drop_last=True
+            )
+            for x in ["train", "valid"]
+        )
         # images, labels = next(iter(trainloader))
-        return trainloader, validloader
+        return dataloaders
 
     def load_weights(self, last_checkpoint, model, optimizer, scheduler):
         # check for existing model.pt and load the same
@@ -157,7 +164,7 @@ class Trainer(object):
         logger.info('==> best model found .. best_epoch: {}, best_f1: {:.6f}'.format(best_epoch, self.best_f1))
         return model, optimizer, scheduler
     
-    def train(self, dataset, **kwargs):
+    def train(self, datasets, **kwargs):
         # run this to delete model and reclaim memory
         if "model" in locals(): 
             del model
@@ -167,19 +174,30 @@ class Trainer(object):
         avg_train_loss = []
         avg_valid_loss = []
         # obtain training indices that will be used for validation
-        trainloader, validloader = self.prepare_dataloader(dataset, **kwargs)
+        trainloader, validloader = self.prepare_dataloader(datasets, **kwargs)
 
         # intialize model, criterion, optimizer, scheduler
         if self.model_name == "SimpleConvNet":
             model = SimpleConvNet(n_classes=self.n_classes)
         elif self.model_name == "ConvNet":
             model = ConvNet(n_classes=self.n_classes)
+        elif self.model_name == "VGG16bn":
+            logger.info("==> use_pretrained : {}, feature_extract: {}".format(self.use_pretrained, self.feature_extract))
+            model = VGG16bn(n_classes=self.n_classes, 
+                            use_pretrained=self.use_pretrained, 
+                            feature_extract=self.feature_extract
+                            )
         model.to(self.device)
         logger.info("==> model initialized : {}".format(self.model_name))
         # note: always use BCEWithLogitsLoss instead of (F.sigmoid + BCELoss) for numerical stability
         criterion = torch.nn.BCEWithLogitsLoss()
-        # using AdamW
-        optimizer = torch.optim.AdamW(model.parameters(), lr=self.hyperparams.get("lr")) # Adam
+        # using Adam
+        params_to_update = [param for param in model.parameters() if param.requires_grad == True]
+        logger.info("==> No. of params to update : {}".format(len(params_to_update)))
+        optimizer = torch.optim.Adam(params_to_update,
+                                    lr=self.hyperparams.get("lr"),
+                                    weight_decay=self.hyperparams.get("wd")
+                                    ) # Adam
         if self.hyperparams.get("scheduler") == "CosineAnnealingLR":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
                 T_max=self.hyperparams.get("t_max")
@@ -269,7 +287,7 @@ class Trainer(object):
             y_true = np.asarray(y_true, dtype=np.float32)
             micro_avg_f1, cls_report, mAP, auc_score = metrics(y_true=y_true, y_pred=y_pred, show_report=self.show_report, threshold=self.threshold)
             
-            scheduler.step() # call/update the scheduler
+            # scheduler.step() # call/update the scheduler
 
             if self.show_report: logger.info("==> classification Report: \n{}".format(cls_report))
             logger.info("==> mAP : {}".format(mAP))
@@ -323,16 +341,16 @@ class Trainer(object):
         3. Save the best F1 score model
         """
         set_random_seeds(self.seed)
-        dataset = self.prepare_data()
+        datasets = self.prepare_data()
         if self.with_cv:
             logger.info("==> training w/ Kfold CV ..")
-            skfold = StratifiedKFold(n_splits=self.hyperparams["cv"].get("splits"), shuffle=True, random_state=42)
-            # note: for X we can simply pass a tensor of zeros 
-            # source: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.StratifiedKFold.html#sklearn.model_selection.StratifiedKFold.split
-            for fold, (train_idx, valid_idx) in enumerate(skfold.split(torch.zeros(len(dataset)) , dataset.data.label)):
-                logger.info("Fold : [{}/{}]".format(fold + 1, self.hyperparams["cv"].get("splits")))
-                kwargs = {"splits" : (train_idx, valid_idx)}
-                self.train(dataset, **kwargs)
+            # skfold = StratifiedKFold(n_splits=self.hyperparams["cv"].get("splits"), shuffle=True, random_state=42)
+            # # note: for X we can simply pass a tensor of zeros 
+            # # source: https://scikit-learn.org/stable/modules/generated/sklearn.model_selection.StratifiedKFold.html#sklearn.model_selection.StratifiedKFold.split
+            # for fold, (train_idx, valid_idx) in enumerate(skfold.split(torch.zeros(len(dataset)) , dataset.data.label)):
+            #     logger.info("Fold : [{}/{}]".format(fold + 1, self.hyperparams["cv"].get("splits")))
+            #     kwargs = {"splits" : (train_idx, valid_idx)}
+            #     self.train(dataset, **kwargs)
         else:
             logger.info("==> training w/o Kfold CV ..")
-            self.train(dataset)
+            self.train(datasets)

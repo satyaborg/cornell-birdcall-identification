@@ -1,7 +1,15 @@
+import torch
 import torch.nn as nn
+from torchvision import models
 # from src.torchvggish import torchvggish
 # import torchvision.models as pretrained
 # model = pretrained.vgg16(pretrained=True)
+
+def set_parameter_requires_grad(model, feature_extracting):
+    # source: https://pytorch.org/tutorials/beginner/finetuning_torchvision_models_tutorial.html
+    if feature_extracting:
+        for param in model.parameters():
+            param.requires_grad = False
 
 class SimpleConvNet(nn.Module):
     """Simple CNN; returns raw logits
@@ -283,6 +291,30 @@ class DeepConvNet(nn.Module):
         x = x.view(x.size(0), -1) # flatten
         x = self.classifier(x)
         return x
+
+class VGG16bn(nn.Module):
+    """Pretrained VGG19_bn model
+    """
+    def __init__(self, n_classes: int, 
+                use_pretrained: bool=False, 
+                feature_extract: bool=False
+                ):
+        super(VGG16bn, self).__init__()
+        self.n_classes = n_classes
+        self.model = models.vgg16_bn(pretrained=use_pretrained, progress=True)
+        self.set_parameter_requires_grad(feature_extract)
+        num_features = self.model.classifier[6].in_features
+        self.model.classifier[6] = nn.Linear(num_features, n_classes)
+
+    def set_parameter_requires_grad(self, feature_extract):
+        # source: https://pytorch.org/tutorials/beginner/finetuning_torchvision_models_tutorial.html
+        if feature_extract:
+            # Freeze training for all layers
+            for param in self.model.parameters():
+                param.requires_grad = False
+
+    def forward(self, x):
+        return self.model(x)
 
 class Vggish():
     """

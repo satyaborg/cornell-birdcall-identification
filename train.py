@@ -16,11 +16,14 @@ if __name__ == "__main__":
     trainer.run()
     
     # testing --
-    # idx = 300
+    # idx = 3
     # train, test = trainer.read_data()
     # train.ebird_code.value_counts().plot(kind="bar")
-    # dataset = trainer.prepare_data()
+    # datasets = trainer.prepare_data()
+    # path = train.iloc[idx].ebird_code+"/"+train.iloc[idx].filename[:-4]+".npy"
+    # print(path)
+    # show_melspec(path, **config)
     # trainloader, validloader = trainer.prepare_dataloader(dataset)
     # mean, std = get_stats(trainloader)
     # print("mean : {}, std: {}".format(mean, std))
-    # show_img(dataset, idx)
+    # show_img(datasets["train"], idx, dim=1)
