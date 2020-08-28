@@ -195,8 +195,8 @@ class Trainer(object):
         params_to_update = [param for param in model.parameters() if param.requires_grad == True]
         logger.info("==> No. of params to update : {}".format(len(params_to_update)))
         optimizer = torch.optim.Adam(params_to_update,
-                                    lr=self.hyperparams.get("lr"),
-                                    weight_decay=self.hyperparams.get("wd")
+                                    lr=self.hyperparams.get("lr")
+                                    # weight_decay=self.hyperparams.get("wd")
                                     ) # Adam
         if self.hyperparams.get("scheduler") == "CosineAnnealingLR":
             scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, 
